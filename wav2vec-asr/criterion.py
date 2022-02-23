@@ -17,20 +17,22 @@ from fairseq import metrics, utils
 from fairseq.data.data_utils import post_process
 from fairseq.tasks import FairseqTask
 from fairseq.logging.meters import safe_round
-from beam_search import BeamDecoder
+from beamsearchDecoder import BeamSearchDecoder
+from languageModel import LanguageModel
 from datautil import sentence_post_process
 
 class CtcCriterion(object):
     def __init__(self, zero_infinity=True, target_dictionary=None):
         self.target_dictionary = target_dictionary
         self.labels = self.create_labels(target_dictionary)
-        self.ctcdecoder = BeamDecoder(target_dictionary)
+        self.ctcdecoder = BeamSearchDecoder(target_dictionary)
         self.post_process = 'letter'
         self.blank_idx = target_dictionary['|']
         self.pad_idx = target_dictionary['<pad>']
         self.eos_idx = target_dictionary['</s>']
         self.sentence_avg = False
         self.w2l_decoder = None
+        self.LMmodel = LanguageModel(self.target_dictionary)
         self.zero_infinity = zero_infinity
 
     def create_labels(self, tgt_dict):
@@ -48,7 +50,7 @@ class CtcCriterion(object):
         # ).contiguous()  # (T, B, C) from the encoder
 
         non_padding_mask = ~mask
-        input_lengths = non_padding_mask.long().sum(-1)
+        input_lengths = non_padding_mask.long().sum(-1) #.squeeze()
 
         pad_mask = (sample["target"] != self.pad_idx) & (
             sample["target"] != self.eos_idx
@@ -115,15 +117,18 @@ class CtcCriterion(object):
                                 decoded = decoded[0]
                                 
                     if self.ctcdecoder is not None:
-                        decoded = self.ctcdecoder.decode(lp)
-                        decoded = decoded[0]
+                        decoded_toks = self.ctcdecoder(lp, sample['target'], input_lengths)
+                        
+                    # implement the language model
+                    scores = self.LMmodel.LMscore(decoded_toks)
+                    max_idx = scores.index(max(scores))
+                    toks = decoded_toks[max_idx]
 
                     p = (t != self.pad_idx) & (t != self.eos_idx)
                     targ = t[p]
                     targ_units = self.ctcdecoder.to_string(targ)
                     targ_units_arr = targ.tolist()
 
-                    toks = lp.argmax(dim=-1).unique_consecutive()
                     pred_units_arr = toks[toks != self.blank_idx]
 
                     c_err += editdistance.eval(pred_units_arr, targ_units_arr)

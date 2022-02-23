@@ -6,49 +6,39 @@ Created on Tue Feb  8 16:27:24 2022
 @author: atreyee
 """
 import os
+from operator import itemgetter
+from dataclasses import dataclass, field
 import torch
 from typing import List
 from queue import PriorityQueue
 import kenlm
 
 
-"""
-    Beam search decoder adapted from:
-        https://github.com/budzianowski/PyTorch-Beam-Search-Decoding/blob/master/decode_beam.py
-"""
-
 class BeamSearchNode(object):
-    def __init__(self, hiddenstate, previousNode, wordId, logProb, length):
-        '''
-        :param hiddenstate:
-        :param previousNode:
-        :param wordId:
-        :param logProb:
-        :param length:
-        '''
-        self.h = hiddenstate
+    def __init__(self, lprob, previousNode, ltrId, length):
+        
         self.prevNode = previousNode
-        self.wordid = wordId
-        self.logp = logProb
-        self.leng = length
+        self.ltrid = ltrId
+        self.lprob = lprob
+        self.len = length
 
     def eval(self, alpha=1.0):
         reward = 0
        
-        return self.logp / float(self.leng - 1 + 1e-6) + alpha * reward
-    
-    
+        return self.lprob / float(self.len - 1 + 1e-6) + alpha * reward
+
+
 class BeamSearchDecoder(torch.nn.Module):
     def __init__(self, tgt_dict, blank=0):
         super().__init__()
         self.labels = self.create_labels(tgt_dict)
+        self.tgt_dict = tgt_dict
         self.blank = blank
         self.SOS_token = tgt_dict['<s>']
         self.EOS_token = tgt_dict['</s>']
-        self.beam_width = 10
-        self.topk = 3  # number of sentences to generate
-        self.LM = os.path.join('/home/atreyee/ASR','test.arpa')
-        self.model = kenlm.LanguageModel(self.LM)
+        self.beam_width = 5
+        self.nsent = 3  # number of sentences to generate
+        
         
     def create_labels(self, tgt_dict):
         labels = [0]*len(tgt_dict)
@@ -57,92 +47,91 @@ class BeamSearchDecoder(torch.nn.Module):
             
         return labels
     
-    def to_string(self, labels):
-        indices = torch.unique_consecutive(labels, dim=-1)
-        indices = [i for i in indices if i != self.blank]
-        joined = "".join([self.labels[i] for i in indices])
-        return joined #.replace("|", " ").strip().split()
+    def to_string(self, id_seq):
+        ids = torch.unique_consecutive(torch.tensor(id_seq), dim=-1)
+        ids = [i for i in ids if i != self.blank]
+        decoded_ = "".join([self.labels[i] for i in ids])
+        decoded_.replace("|", " ").strip().split()
+        return decoded_.lower()
 
-    def forward(self, emission: torch.Tensor, decoded: torch.Tensor, target_seq: torch.Tensor) -> List[str]:
+    def forward(self, predicted_seq_lprobs: torch.Tensor, target_seq: torch.Tensor, seq_len: torch.Tensor) -> List[str]:
         """Given a sequence emission over labels, get topk best path
         Args:
           emission (Tensor): Logit tensors. Shape `[num_seq, num_label]`.
 
         Returns:
-          List[str]: self.topk resulting transcript
+          List[str]: self.nsent resulting transcript
         """
         
         decoded_batch = []
+        nodes = []
+            
+        EOSnodes = []
+        lprob_idx = predicted_seq_lprobs[:, 0, 0]
+                   
+        # Start with the <s> of the sentence token
+        decoder_input = torch.LongTensor([[self.SOS_token]])
         
-        # decode by seq
-        for idx in range(target_seq.size(0)):
-            decoder_hid = decoded[:, idx, :].unsqueeze(0)
-            emission_ = emission[:,idx, :].unsqueeze(1)
-           
-            # Start with the <s> of the sentence token
-            decoder_input = torch.LongTensor([[self.SOS_token]])
-            
-            # Num sentences to generate
-            endnodes = []
-            num = min((self.topk + 1), self.topk - len(endnodes))
-            
-            node = BeamSearchNode(decoder_hid, None, decoder_input, 0, 1)
-            nodes = PriorityQueue()
-            
-            # Start queue
-            nodes.put((-node.eval(), node))
-            qsize = 1
+        SOSnode = BeamSearchNode(lprob_idx, None, self.tgt_dict['<s>'], 1)
+        EOSnode = None
+        # Start queue
+        nodes.append([(-SOSnode.eval(), SOSnode)])
+        qsize = 1
+
+        # iterate over sequence
+        for idx in range(1, target_seq.size(-1)):
             
             # Start search
             
-            while True:
-                # give up when decoding takes too long
-                if qsize > 2000: break
-    
-                # fetch the best node
-                score, n = nodes.get()
-                decoder_input = n.wordid
-                decoder_hid = n.h
-                
-                if n.wordid.item() == self.EOS_token and n.prevNode != None:
-                    endnodes.append((score, n))
-                    
-                    # if we reached maximum # of sentences required
-                    if len(endnodes) >= num:
-                        break
-                    else:
-                        continue
-                    
-                # PUT HERE REAL BEAM SEARCH OF TOP
-                log_prob, indexes = torch.topk(decoded, self.beam_width)
-                nextnodes = []
-    
-                for new_k in range(self.beam_width):
-                    decoded_t = indexes[0][new_k].view(1, -1)
-                    log_p = log_prob[0][new_k].item()
-    
-                    node = BeamSearchNode(decoder_hid, n, decoded_t, n.logp + log_p, n.leng + 1)
-                    score = -node.eval()
+            # give up when decoding takes too long
+            if qsize > 2000: break
+            # fetch next step
+            lprob_next_idx = predicted_seq_lprobs[:, idx, :].unsqueeze(0)
+            lprob_, indexes = torch.topk(lprob_next_idx, self.beam_width)
+            
+            nextnodes = [] 
+            
+            for n_ in nodes[-1]:
+                score, n = n_
+        
+                if n.ltrid == self.EOS_token and n.prevNode != None:
+                    EOSnodes.append((-n.eval(), n))
+                    continue
+
+                for k in range(self.beam_width):
+                    topk_index = indexes[:, 0, k].view(1, -1)
+                    lprob = lprob_next_idx[:, 0, k].item()
+
+                    node = BeamSearchNode(n.lprob + lprob, n, self.tgt_dict[self.labels[topk_index]], n.len + 1)
+                    score = -node.eval().item()
                     nextnodes.append((score, node))
                     
-                # insert into queue
-                for i in range(len(nextnodes)):
-                    score, nn = nextnodes[i]
-                    nodes.put((score, nn))
-                    # increase qsize
-                qsize += len(nextnodes) - 1
-                
-                # back trace nbest paths
-                if len(endnodes) == 0:
-                    endnodes = [nodes.get() for _ in range(self.topk)]
-                    
-            sum_inv_logprob = []    
-            for ind, sentence in enumerate(endnodes):
-                sum_inv_logprob[ind] = -1.0 * sum(score for score, _, _ in self.model.full_scores(sentence))
-        
-        indices = endnodes[endnodes.index(max(endnodes))]
-        indices = torch.unique_consecutive(indices, dim=-1)
-        indices = [i for i in indices if i != self.blank]
-        joined = "".join([self.labels[i] for i in indices])
-        
-        return joined.replace("|", " ").strip().split()
+            nextnodes.sort(key=itemgetter(0))
+            nodes.append(nextnodes[:self.nsent])
+             
+        # back trace best paths
+        if len(EOSnodes) == 0:
+            EOSnodes = [nextnodes[i] for i in range(self.nsent)]
+
+        # decoded_sentences = []
+        decoded_toks = []
+
+        for score, n in sorted(EOSnodes, key=lambda s: s[0]):
+            id_seq = []
+            id_seq.append(n.ltrid)
+            # back trace
+            while n.prevNode != None:
+                n = n.prevNode
+                id_seq.append(n.ltrid)
+            id_seq = id_seq[::-1]
+            
+            decoded_toks.append(id_seq)
+            # # Convert to letters
+            # ids = torch.unique_consecutive(torch.tensor(id_seq), dim=-1)
+            # ids = [i for i in ids if i != self.blank]
+            # decoded_ = "".join([self.labels[i] for i in ids])
+            # decoded_.replace("|", " ").strip().split()
+            # decoded_sentences.append(decoded_.lower())
+
+
+        return decoded_toks 

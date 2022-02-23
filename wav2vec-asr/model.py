@@ -18,8 +18,8 @@ class wav2vecModel(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
 
-    def forward(self, net_input, padding_mask, target, ntokens, id):
+    def forward(self, net_input, padding_mask, src_lengths, target, ntokens, id):
         with torch.no_grad():
             emissions, mask = self.encoder.extract_features(net_input, padding_mask)
-        net_output = self.decoder(emissions.transpose(1,0))
-        return net_output, mask
+        net_output, pad_mask = self.decoder(emissions.transpose(1,2), src_lengths)
+        return net_output.permute(2, 0, 1), pad_mask

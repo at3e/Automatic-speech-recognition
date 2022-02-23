@@ -6,6 +6,7 @@ Created on Sun Jan 30 17:55:49 2022
 @author: atreyee
 """
 import time
+import torch.nn as nn
 def prepare_empty_dir(dirs, resume=False):
     """
     if resume experiment, assert the dirs exist,
@@ -37,3 +38,16 @@ class ExecutionTime:
 
     def duration(self):
         return time.time() - self.start_time
+    
+# def get_sequential_model_properties(model):
+    
+#     kernel_size = []; stride = []; padding = []; dilation = []
+#     for i, module in enumerate(model.modules()):
+        
+#         if isinstance(module, nn.Conv1d):
+#             kernel_size.append(module.kernel_size[0])
+#             stride.append(module.stride[0])
+#             padding.append(module.padding[0])
+#             dilation.append(module.dilation[0])
+            
+#     return dict({'kernel_size': kernel_size, 'stride': stride, 'padding': padding, 'dilation': dilation})
