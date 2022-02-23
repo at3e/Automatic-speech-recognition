@@ -31,7 +31,7 @@ class BeamSearchNode(object):
 class BeamSearchDecoder(torch.nn.Module):
     def __init__(self, tgt_dict, blank=0):
         super().__init__()
-        self.labels = self.create_labels(tgt_dict)
+        self.labels = self.get_labels(tgt_dict)
         self.tgt_dict = tgt_dict
         self.blank = blank
         self.SOS_token = tgt_dict['<s>']
@@ -40,7 +40,7 @@ class BeamSearchDecoder(torch.nn.Module):
         self.nsent = 3  # number of sentences to generate
         
         
-    def create_labels(self, tgt_dict):
+    def get_labels(self, tgt_dict):
         labels = [0]*len(tgt_dict)
         for key, value in tgt_dict.items():
             labels[value] = key
