@@ -37,15 +37,14 @@ class CtcCriterion(object):
         labels = [0]*len(tgt_dict)
         for key, value in tgt_dict.items():
             labels[value] = key
-            
-        return labels 
+
+        return labels
 
 
     def forward(self, sample, model, reduce=True):
         lprobs, mask = model(**sample)
-        # lprobs = model.get_normalized_probs(
-        #     lprobs, log_probs=True
-        # ).contiguous()  # (T, B, C) from the encoder
+        lprobs = model.get_normalized_probs(
+             lprobs, log_probs=True).contiguous()  # (T, B, C) from the encoder
 
         non_padding_mask = ~mask
         input_lengths = non_padding_mask.long().sum(-1)

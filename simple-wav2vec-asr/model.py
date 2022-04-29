@@ -21,7 +21,13 @@ class wav2vecModel(nn.Module):
 
     def forward(self, net_input, padding_mask, target, ntokens, id):
         with torch.no_grad():
-            emissions, mask = self.encoder.extract_features(net_input, padding_mask)
-        lprobs = self.encoder.get_normalized_probs(emissions, log_probs=True).contiguous()  # (T, B, C) from the encoder
-        net_output = self.proj(emissions.transpose(1,0))
+            enc_out = self.encoder.extract_features(net_input.cuda(), padding_mask.cuda())
+            x = enc_out['x']
+            features = enc_out['features']
+            mask = enc_out['padding_mask']
+            if mask is None:
+                mask = torch.zeros((x.shape[:-1]), dtype=torch.uint8)
+
+        # lprobs = self.encoder.get_normalized_probs(emissions, log_probs=True).contiguous()  # (T, B, C) from the encoder
+        net_output = self.proj(x.transpose(1,0))
         return net_output, mask
