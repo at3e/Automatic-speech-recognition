@@ -5,11 +5,12 @@ Created on Sat Jan 29 16:42:37 2022
 
 @author: atreyee
 """
-
+import torch
+torch.cuda.current_device()
 import fairseq
 import json
 import librosa
-import torch, torchaudio
+import torchaudio
 
 import torch.multiprocessing as mp
 import torch.distributed as dist
@@ -36,22 +37,24 @@ valid_dataset = AudioFileDataset(mode='validation', device='cuda')
 # test_dataset = IRMDataset(mode='test', device=device)
 
 batch_size = config['model'][0]['batch_size']
-params = {"batch_size": 2, 
+params = {"batch_size": 2,
           "shuffle": True}
-params_ = {"batch_size": 1, 
+params_ = {"batch_size": 1,
           "shuffle": True}
 train_generator = DataLoader(train_dataset, **params)
 val_generator = DataLoader(valid_dataset, **params_)
 # load pre-trained checkpoint
-model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task(['./models/wav2vec_small.pt'])
+model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task(['../models/wav2vec_small.pt'], \
+                                                                          arg_overrides={"data":"../"})
 model = model[0]
-asr_model = wav2vecModel(model, tgt_dict).to('cuda:1')
+
+asr_model = wav2vecModel(model, tgt_dict).cuda()
 resume = False
 
 # define train hyperparameters
 if torch.cuda.is_available():
     n_gpus = torch.cuda.device_count()
-    
+
 train_config = config["trainer"][0]
 optimizer = torch.optim.Adam(model.parameters(), lr = train_config['lr'])
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, verbose =True)
