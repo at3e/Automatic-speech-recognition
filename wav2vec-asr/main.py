@@ -48,7 +48,7 @@ model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task(['../mo
 model = model[0]
 
 asr_model = wav2vecModel(model, tgt_dict).cuda()
-resume = True
+resume = False
 
 # define train hyperparameters
 if torch.cuda.is_available():

@@ -1,0 +1,11 @@
+2022-07-03 20:30:15 | INFO | fairseq.tasks.text_to_speech | Please install tensorboardX: pip install tensorboardX
+Traceback (most recent call last):
+  File "/idiap/home/asaha/Automatic-speech-recognition/wav2vec-asr/main.py", line 60, in <module>
+    ctc_criterion = CtcCriterion(target_dictionary=tgt_dict)
+  File "/remote/idiap.svm/temp.speech02/asaha/Automatic-speech-recognition/wav2vec-asr/criterion.py", line 45, in __init__
+    self.w2l_decoder = W2lKenLMDecoder(dec_args, target_dictionary)
+  File "/remote/idiap.svm/temp.speech02/asaha/Automatic-speech-recognition/wav2vec-asr/speech_recognition/w2l_decoder.py", line 127, in __init__
+    super().__init__(args, tgt_dict)
+  File "/remote/idiap.svm/temp.speech02/asaha/Automatic-speech-recognition/wav2vec-asr/speech_recognition/w2l_decoder.py", line 59, in __init__
+    if "<ctc_blank>" in tgt_dict.indices
+AttributeError: 'dict' object has no attribute 'indices'

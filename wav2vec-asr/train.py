@@ -181,8 +181,11 @@ class Trainer:
             print("[0 seconds] Begin training...")
             timer = ExecutionTime()
 
-            self._set_models_to_train_mode()
-            self._train_epoch(epoch)
+            # self._set_models_to_train_mode()
+            # self._train_epoch(epoch)
+
+            self._set_models_to_eval_mode()
+            score = self._validation_epoch(epoch)
 
             if self.checkpoint_frequency != 0 and (epoch % self.checkpoint_frequency == 0):
                 self._save_checkpoint(epoch)
