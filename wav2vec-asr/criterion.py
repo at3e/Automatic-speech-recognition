@@ -17,41 +17,36 @@ from fairseq import metrics, utils
 from fairseq.data.data_utils import post_process
 from fairseq.tasks import FairseqTask
 from fairseq.logging.meters import safe_round
-from beamsearchDecoder import BeamSearchDecoder
-from languageModel import LanguageModel
+from greedyDecoder import GreedyCTCDecoder
 from datautil import sentence_post_process
-
+import pdb
 class CtcCriterion(object):
     def __init__(self, zero_infinity=True, target_dictionary=None):
         self.target_dictionary = target_dictionary
         self.labels = self.create_labels(target_dictionary)
-        self.ctcdecoder = BeamSearchDecoder(target_dictionary)
+        self.ctcdecoder = GreedyCTCDecoder(target_dictionary)
         self.post_process = 'letter'
         self.blank_idx = target_dictionary['|']
         self.pad_idx = target_dictionary['<pad>']
         self.eos_idx = target_dictionary['</s>']
         self.sentence_avg = False
         self.w2l_decoder = None
-        self.LMmodel = LanguageModel(self.target_dictionary)
         self.zero_infinity = zero_infinity
 
     def create_labels(self, tgt_dict):
         labels = [0]*len(tgt_dict)
         for key, value in tgt_dict.items():
             labels[value] = key
-            
-        return labels 
+
+        return labels
 
 
     def forward(self, sample, model, reduce=True):
         lprobs, mask = model(**sample)
-        # lprobs = model.get_normalized_probs(
-        #     lprobs, log_probs=True
-        # ).contiguous()  # (T, B, C) from the encoder
-
-        non_padding_mask = ~mask
-        input_lengths = non_padding_mask.long().sum(-1) #.squeeze()
-
+#        lprobs = model.get_logits(
+#             lprobs).contiguous()  # (T, B, C) from the encoder
+        non_padding_mask = ~(mask.to(torch.bool))
+        input_lengths = non_padding_mask.long().sum(-1)
         pad_mask = (sample["target"] != self.pad_idx) & (
             sample["target"] != self.eos_idx
         )
@@ -115,20 +110,13 @@ class CtcCriterion(object):
                                 decoded = None
                             else:
                                 decoded = decoded[0]
-                                
-                    if self.ctcdecoder is not None:
-                        decoded_toks = self.ctcdecoder(lp, sample['target'], input_lengths)
-                        
-                    # implement the language model
-                    scores = self.LMmodel.LMscore(decoded_toks)
-                    max_idx = scores.index(max(scores))
-                    toks = decoded_toks[max_idx]
 
                     p = (t != self.pad_idx) & (t != self.eos_idx)
                     targ = t[p]
                     targ_units = self.ctcdecoder.to_string(targ)
                     targ_units_arr = targ.tolist()
 
+                    toks = lp.argmax(dim=-1).unique_consecutive()
                     pred_units_arr = toks[toks != self.blank_idx]
 
                     c_err += editdistance.eval(pred_units_arr, targ_units_arr)

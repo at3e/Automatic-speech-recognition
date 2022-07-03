@@ -20,7 +20,7 @@ if not os.path.exists(log_name):
 
 
 class Trainer:
-    
+
     """
     Trainer.
 
@@ -52,12 +52,12 @@ class Trainer:
                  model= None
         ):
         super().__init__()
-        
+
         self.root_dir = Path(config['root_dir']) / log_name
         self.checkpoints_dir = self.root_dir / 'checkpoints'
         self.logs_dir = self.root_dir /'logs'
         prepare_empty_dir([self.checkpoints_dir, self.logs_dir], resume=resume_from_checkpoint)
-        
+
         self.model = model
         self.optimize_method = optimize_method
         self.scheduler_method = scheduler_method
@@ -69,37 +69,35 @@ class Trainer:
         self.validation_interval = 1
         self.find_min = True
         self.best_score = np.inf
-        
+
         # define hyper parameters
         self.max_epoch = max_epoch
         self.lr = learning_rate
         self.n_lr_warm_up_epoch = n_lr_warm_up_epoch
-       
-
         # define data loaders
         self.train_data_loader = train_data_loader
         self.valid_data_loader = valid_data_loader
-        
+
         # initialize optimizer
         self.optimizer, self.scheduler = self.configure_optimizers()
 
+
     def _resume_checkpoint(self):
             """Resume experiment from latest checkpoint.
-    
+
             """
             latest_model_path = self.checkpoints_dir / "latest_model.pt"
             assert latest_model_path.exists(), f"{latest_model_path} does not exist, cannot load checkpoint."
-    
+
             checkpoint = torch.load(latest_model_path.as_posix(), map_location=self.device)
-    
+
             self.start_epoch = checkpoint["epoch"] + 1
             self.best_score = checkpoint["best_score"]
             self.optimizer.load_state_dict(checkpoint["optimizer"])
-    
             self.model.load_state_dict(checkpoint["model"], strict = False)
-    
+
             print(f"Model checkpoint loaded. Training will begin in {self.start_epoch} epoch.")
-    
+
     def _save_checkpoint(self, epoch, is_best=False):
         """Save model checkpoints to <root_dir>/checkpoints directory, which contains:
             - current epoch
@@ -125,7 +123,7 @@ class Trainer:
         Notes:
             - latest_model.pt:
                 Contains all checkpoint information, including optimizer parameters, model parameters, etc.
-            - model_<epoch>.pt: 
+            - model_<epoch>.pt:
                 The parameters of the model.
             - best_model.pt:
                 Like latest_model, but only saved when <is_best> is True.
@@ -137,17 +135,15 @@ class Trainer:
             torch.save(state_dict, (self.checkpoints_dir / "best_model.pt").as_posix())
             # # Save the outputs for best_model
             # test_file_names = [line.strip(line) for line in open("test_files.txt", "r")]
-            
+        self.model.cuda()
 
-        self.model.to('cuda:1')
- 
-        
+
     def configure_optimizers(self):
         if self.optimize_method == "adam":
             optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
-       
+
         if self.scheduler_method == "linear_decay":
-            def lr_lambda(current_epoch): # Copied from https://github.com/huggingface/transformers/blob/master/src/transformers/optimization.py
+            def lr_lambda(current_epoch):
                 if current_epoch < self.n_lr_warm_up_epoch:
                     return float(current_epoch+1) / float(max(1, self.n_lr_warm_up_epoch)) # current_epoch+1 to prevent lr=0 in epoch 0
                 return max(
@@ -157,13 +153,12 @@ class Trainer:
             scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=9, T_mult=1, eta_min=1e-6)
         else:
             return optimizer
-        
+
         return optimizer, scheduler
-        
-        
+
     def _set_models_to_train_mode(self):
         self.model.train()
-        
+
     def _set_models_to_eval_mode(self):
         self.model.eval()
 
@@ -178,28 +173,29 @@ class Trainer:
             return True
         else:
             return False
-        
+
     def training_step(self):
         for epoch in range(self.start_epoch, self.epochs + 1):
-            
+
             print(f"============== {epoch} epoch ==============")
             print("[0 seconds] Begin training...")
             timer = ExecutionTime()
-            
+
             self._set_models_to_train_mode()
             self._train_epoch(epoch)
 
             if self.checkpoint_frequency != 0 and (epoch % self.checkpoint_frequency == 0):
                 self._save_checkpoint(epoch)
 
-            if self.validation_interval != 0 and epoch % self.validation_interval == 0:
-                print(f"[{timer.duration()} seconds] Training is over, Validation is in progress...")
+            # if self.validation_interval != 0 and epoch % self.validation_interval == 0:
+                # print(f"[{timer.duration()} seconds] Training is over, Validation is in progress...")
 
-                self._set_models_to_eval_mode()
-                score = self._validation_epoch(epoch)
-                
-                if self._is_best(score, find_min=self.find_min):
-                    self._save_checkpoint(epoch, is_best=True)
+                # self._set_models_to_eval_mode()
+                # score = self._validation_epoch(epoch)
+
+
+                # if self._is_best(score, find_min=self.find_min):
+                    # self._save_checkpoint(epoch, is_best=True)
 
             print(f"[{timer.duration()} seconds] End this epoch.")
             torch.cuda.empty_cache()
@@ -244,30 +240,15 @@ class Seq2SeqTraining(Trainer):
         ):
 
         super(Seq2SeqTraining, self).__init__(max_epoch, config, resume_from_checkpoint, criterion,
-                                              optimize_method, scheduler_method, learning_rate, 
-                                              n_lr_warm_up_epoch, loss_coeff_dict, train_data_loader, 
+                                              optimize_method, scheduler_method, learning_rate,
+                                              n_lr_warm_up_epoch, loss_coeff_dict, train_data_loader,
                                               valid_data_loader, model)
-        
-        # self.trainer = Trainer(max_epoch= 10,
-        #                  config= None,
-        #                  resume_from_checkpoint= False,
-        #                  criterion= None,
-        #                  optimize_method= 'adam',
-        #                  scheduler_method='linear_decay_with_warm_up',
-        #                  learning_rate= 0.001,
-        #                  n_lr_warm_up_epoch= 10,
-        #                  loss_coeff_dict= None,
-        #                  train_data_loader= None,
-        #                  valid_data_loader= None,
-        #                  model= None                    
-        #                 )
 
         self.model = model
         self.train_data_loader = train_data_loader
         self.valid_data_loader = valid_data_loader
         self.criterion = criterion
         self.best_score = np.inf
-    
 
     def _train_epoch(self, epoch):
         loss_total = 0
@@ -277,16 +258,13 @@ class Seq2SeqTraining(Trainer):
             self.optimizer.step()
             loss_total += loss
             self.scheduler.step()
-        
+
         print("Loss/Train" + str(loss_total / len(self.train_data_loader)))
-            
+
     def _validation_epoch(self, epoch):
         loss_total = 0
         for sample in self.valid_data_loader:
             loss, sample, log = self.criterion.forward(sample, self.model)
             loss_total += loss
-        
         return loss_total
-        
 
-    
