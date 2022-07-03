@@ -1,0 +1,36 @@
+{
+  "root_dir": "./",
+  "model": [
+    {
+      "batch_size": 1,
+      "n_layers": 1,
+      "n_frames": 321,
+      "in_dim": 1025,
+      "c_dim": 33,
+      "att_dim": 64,
+      "out_dim": 1025,
+      "hid_dim": 1025
+    }
+  ],
+  "trainer": [
+    {
+      "root_dir": "./",
+      "loss_function": {
+        "module": "utils",
+        "main": "mse_loss_for_variable_length_data",
+        "args": {}
+      },
+      "scheduler": {
+        "module": "torch.optim.optim.lr_scheduler.StepLR"
+      },
+      "lr": 0.0001,
+      "n_warm_up": 10,
+      "epochs": 1000,
+      "chk_pt_freq": 5,
+      "validation": {
+        "interval": 1,
+        "find_max": false
+      }
+    }
+  ]
+}

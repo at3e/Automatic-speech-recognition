@@ -17,20 +17,32 @@ from fairseq import metrics, utils
 from fairseq.data.data_utils import post_process
 from fairseq.tasks import FairseqTask
 from fairseq.logging.meters import safe_round
-from greedyDecoder import GreedyCTCDecoder
+from speech_recognition.w2l_decoder import W2lKenLMDecoder
 from datautil import sentence_post_process
 import pdb
 class CtcCriterion(object):
-    def __init__(self, zero_infinity=True, target_dictionary=None):
+    def __init__(self, zero_infinity=True, target_dictionary=None, use_lm=True):
         self.target_dictionary = target_dictionary
         self.labels = self.create_labels(target_dictionary)
-        self.ctcdecoder = GreedyCTCDecoder(target_dictionary)
         self.post_process = 'letter'
         self.blank_idx = target_dictionary['|']
         self.pad_idx = target_dictionary['<pad>']
         self.eos_idx = target_dictionary['</s>']
         self.sentence_avg = False
-        self.w2l_decoder = None
+        if use_lm:
+            dec_args = Namespace()
+            dec_args.nbest = 1
+            dec_args.criterion = "ctc"
+            dec_args.kenlm_model = None # wer_kenlm_model
+            dec_args.lexicon = None # wer_lexicon
+            dec_args.beam = 50
+            dec_args.beam_size_token = min(50, len(target_dictionary))
+            dec_args.beam_threshold = min(50, len(target_dictionary))
+            dec_args.lm_weight = None # wer_lm_weight
+            dec_args.word_score = None # wer_word_score
+            dec_args.unk_weight = -math.inf
+            dec_args.sil_weight = 0
+        self.w2l_decoder = W2lKenLMDecoder(dec_args, target_dictionary)
         self.zero_infinity = zero_infinity
 
     def create_labels(self, tgt_dict):
@@ -100,6 +112,7 @@ class CtcCriterion(object):
                     lp = lp[:inp_l].unsqueeze(0)
 
                     decoded = None
+                    print(self.w2l_decoder)
                     if self.w2l_decoder is not None:
                         decoded = self.w2l_decoder.decode(lp)
                         if len(decoded) < 1:
@@ -111,11 +124,10 @@ class CtcCriterion(object):
                             else:
                                 decoded = decoded[0]
 
-                    p = (t != self.task.target_dictionary.pad()) & (
-                        t != self.task.target_dictionary.eos()
+                    p = (t != self.target_dictionary.pad()) & (
+                        t != self.target_dictionary.eos()
                     )
                     targ = t[p]
-                    print(targ)
                     targ_units = self.target_dictionary.string(targ)
                     targ_units_arr = targ.tolist()
 

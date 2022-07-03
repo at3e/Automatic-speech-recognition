@@ -1,0 +1,19 @@
+
+#!/bin/bash
+
+## Sun's Grid Engine parameters
+# ... (see 'man qsub' for complete documentation)
+# ... job name
+#$ -N  testjob
+# ... make sure to use proper shell
+#$ -S /bin/bash
+# ... e-mail address to send notifications
+#$ -M asaha@idiap.ch
+# ... use current working directory for output
+#$ -cwd
+
+## Task
+eval $(/idiap/group/speech/local/bin/brew shellenv)
+export LD_LIBRARY_PATH=$HOMEBREW_PREFIX/lib/python3.9/site-packages:$LD_LIBRARY_PATH
+python3 /idiap/home/asaha/Automatic-speech-recognition/wav2vec-asr/main.py
+
