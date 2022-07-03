@@ -111,21 +111,23 @@ class CtcCriterion(object):
                             else:
                                 decoded = decoded[0]
 
-                    p = (t != self.pad_idx) & (t != self.eos_idx)
+                    p = (t != self.task.target_dictionary.pad()) & (
+                        t != self.task.target_dictionary.eos()
+                    )
                     targ = t[p]
-                    targ_units = self.ctcdecoder.to_string(targ)
+                    targ_units = self.task.target_dictionary.string(targ)
                     targ_units_arr = targ.tolist()
 
                     toks = lp.argmax(dim=-1).unique_consecutive()
-                    pred_units_arr = toks[toks != self.blank_idx]
+                    pred_units_arr = toks[toks != self.blank_idx].tolist()
 
                     c_err += editdistance.eval(pred_units_arr, targ_units_arr)
                     c_len += len(targ_units_arr)
 
-                    targ_words = sentence_post_process(targ_units, self.post_process).split()
+                    targ_words = post_process(targ_units, self.post_process).split()
 
-                    pred_units = self.ctcdecoder.to_string(pred_units_arr)
-                    pred_words_raw = sentence_post_process(pred_units, self.post_process).split()
+                    pred_units = self.task.target_dictionary.string(pred_units_arr)
+                    pred_words_raw = post_process(pred_units, self.post_process).split()
 
                     if decoded is not None and "words" in decoded:
                         pred_words = decoded["words"]
