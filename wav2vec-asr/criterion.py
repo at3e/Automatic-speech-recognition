@@ -115,7 +115,8 @@ class CtcCriterion(object):
                         t != self.task.target_dictionary.eos()
                     )
                     targ = t[p]
-                    targ_units = self.task.target_dictionary.string(targ)
+                    print(targ)
+                    targ_units = self.target_dictionary.string(targ)
                     targ_units_arr = targ.tolist()
 
                     toks = lp.argmax(dim=-1).unique_consecutive()
@@ -126,7 +127,7 @@ class CtcCriterion(object):
 
                     targ_words = post_process(targ_units, self.post_process).split()
 
-                    pred_units = self.task.target_dictionary.string(pred_units_arr)
+                    pred_units = self.target_dictionary.string(pred_units_arr)
                     pred_words_raw = post_process(pred_units, self.post_process).split()
 
                     if decoded is not None and "words" in decoded:
