@@ -100,6 +100,7 @@ class CtcCriterion(object):
                     lp = lp[:inp_l].unsqueeze(0)
 
                     decoded = None
+                    print(self.w2l_decoder)
                     if self.w2l_decoder is not None:
                         decoded = self.w2l_decoder.decode(lp)
                         if len(decoded) < 1:
@@ -111,11 +112,10 @@ class CtcCriterion(object):
                             else:
                                 decoded = decoded[0]
 
-                    p = (t != self.task.target_dictionary.pad()) & (
-                        t != self.task.target_dictionary.eos()
+                    p = (t != self.target_dictionary.pad()) & (
+                        t != self.target_dictionary.eos()
                     )
                     targ = t[p]
-                    print(targ)
                     targ_units = self.target_dictionary.string(targ)
                     targ_units_arr = targ.tolist()
 
