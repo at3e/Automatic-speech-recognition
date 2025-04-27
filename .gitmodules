@@ -1,0 +1,3 @@
+[submodule "SpecAugment"]
+	path = SpecAugment
+	url = https://github.com/at3e/SpecAugment
