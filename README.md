@@ -1,2 +1,4 @@
-# Automatic-speech-recognition
-code resposirtory for speech recognition project using wav2vec models.
+# A Pipeline for Adaptation of the Wav2Vec Model for Vernacular Languages
+This focuses on enhancing automatic speech recognition (ASR) for atypical and low-resource languages. Since pretrained models like Wav2Vec2 have significantly improved ASR performance, your work explores their adaptation for vernacular speech, particularly on Bengali datasets, with a special emphasis on atypical speech.
+
+The primary challenge lies in the lack of sufficient training data and the unique speech characteristics of individual speakers, which lead to domain mismatches. To overcome this, the approach involves data augmentation and synthetic data generation, combined with fine-tuning components of the Wav2Vec2 using supervised learning. The end-to-end (E2E) transformer models are leveraged for this matter, as they have outperformed traditional deep neural network (DNN) embedding methods.
